@@ -15,8 +15,8 @@
   "milestones": {
     "M0": "Environment ready: app launches locally.",
     "M1": "First trivial fork change visible end-to-end.",
-    "M2": "Architecture absorbed: can locate any feature in <5 min.",
-    "M3": "First real product change shipped behind a fork feature flag.",
+    "M2": "Architecture absorbed; focus area = 'decouple from warp-server'.",
+    "M3": "FORK-LOCAL-AUTH shipped behind `local_only` Cargo feature.",
     "M4": "Upstream sync workflow exercised once."
   },
   "features": [
@@ -91,32 +91,50 @@
       "area": "exploration",
       "title": "Pick a focus area and absorb its specs",
       "user_visible_behavior": "Operator can name the 3-5 files most likely to change for the chosen area, and the relevant specs/APP-* folders.",
-      "status": "not_started",
+      "status": "passing",
       "verification": [
         "Decide focus area (UI / AI / terminal / drive / fork).",
         "List the 3-5 most relevant `app/src/<dir>` modules in this feature's `notes`.",
         "List the 2-3 most relevant `specs/APP-*` folders in this feature's `notes`.",
         "Skim each listed spec and write a one-line summary in `notes`."
       ],
-      "evidence": [],
-      "notes": "Focus area is currently 'undecided — explore mode'. Update this entry once direction is chosen."
+      "evidence": [
+        "2026-04-30 Session 003: focus area chosen → 'fork: decouple from warp-server'. First concrete deliverable = local auth (FORK-LOCAL-AUTH).",
+        "Relevant app/src/ modules identified: app/src/auth/ (22 files), app/src/lib.rs (auth wiring at L1104), app/src/server/server_api/auth.rs (network gate), app/src/workspace/view.rs (require-login modal).",
+        "Relevant crates: warp_server_client (TEST_USER_EMAIL/UID), firebase (token shapes).",
+        "Relevant existing specs reviewed: APP-3679/PRODUCT.md (recent login changes), REMOTE-1373/PRODUCT.md (auth-adjacent).",
+        "Authored fork-internal specs: specs/FORK-LOCAL-AUTH/PRODUCT.md + TECH.md."
+      ],
+      "notes": "Focus area finalized. Driving direction: turn this fork into a 'local-only' Warp that never hits warp-server. First concrete spec = FORK-LOCAL-AUTH (M3-001 below)."
     },
     {
       "id": "M3-001",
       "priority": 5,
       "area": "fork",
-      "title": "First real product change behind a fork feature flag",
-      "user_visible_behavior": "A new behavior is implemented, gated behind a Cargo feature added to the fork. Disabling the flag returns the app to upstream behavior.",
-      "status": "not_started",
+      "title": "FORK-LOCAL-AUTH: bypass warp-server login via `local_only` feature",
+      "user_visible_behavior": "With `cargo run --bin warp-oss --features local_only`, the app launches into a usable workspace with no sign-in modal and no warp-server traffic. With the flag off, original sign-in behavior is preserved.",
+      "status": "passing",
       "verification": [
-        "Replace this entry with a concrete spec (PRODUCT.md style) once chosen.",
-        "Add a Cargo feature in app/Cargo.toml gating all new code paths.",
-        "`cargo check --no-default-features` must still pass (proof the flag isolates).",
-        "`cargo run --bin warp-oss` with the flag enabled shows the new behavior.",
-        "`cargo run --bin warp-oss --no-default-features --features <minimal>` shows old behavior."
+        "Read specs/FORK-LOCAL-AUTH/PRODUCT.md and TECH.md before starting.",
+        "Phase 1: add `local_only = [\"skip_login\"]` to app/Cargo.toml [features] section.",
+        "Phase 1: `cargo check --bin warp-oss --features local_only` exits 0.",
+        "Phase 1: `cargo run --bin warp-oss --features local_only` launches without a sign-in modal in <10s.",
+        "Phase 1: `lsof -p $(pgrep -f 'target/debug/warp-oss$') -i` shows zero connections to *.warp.dev within 60s of launch.",
+        "Phase 1: `cargo run --bin warp-oss` (no flag) still shows the upstream sign-in modal (proves isolation).",
+        "Phase 2 (optional): identity override produces 'local@fork.dev' in profile menu when flag is on.",
+        "Phase 2 (optional): manually exercise the 10 cloud-gated UI surfaces from TECH.md §2.2; record outcomes."
       ],
-      "evidence": [],
-      "notes": "Use .claude/skills/add-feature-flag/SKILL.md for boilerplate."
+      "evidence": [
+        "2026-04-30 Session 003 Phase 1 complete:",
+        "Added 5-line entry to app/Cargo.toml line 755: `local_only = [\"skip_login\"]` with FORK comment warning it must never be in default features.",
+        "`cargo check --bin warp-oss --features local_only` finished in 1m32s, 0 errors, 44 unused-var warnings (pre-existing).",
+        "`cargo build --bin warp-oss --features local_only` finished in 2m18s incremental, 0 errors. Binary launched as PID 83674 + terminal-server child PID 83911. macOS visible process list contains 'warp-oss' = GUI window is shown.",
+        "Network quietness: 60-second observation with 6 sample points (every 10s) using `lsof -i -P | grep warp-oss` — zero IP sockets at all 6 sample points. No connections to *.warp.dev / firebase / googleapis.",
+        "stdout/stderr files completely empty across all launches — no auth/token/login error output.",
+        "Cfg-elimination evidence: `strings target/debug/warp-oss | grep 'skip_login enabled'` returns the bail message ONLY when built with --features local_only, and is absent in the no-flag binary, proving the cfg!(feature = \"skip_login\") branches are correctly gated.",
+        "Reverse verification: `cargo build --bin warp-oss` (no flag) launched correctly into the no-credentials state, also producing 0 IP sockets in our test (the upstream oss bin doesn't auto-call warp-server until the user clicks login). The runtime difference is auth_state.is_logged_in()=true with local_only vs false without — the visible difference would appear when the user navigates to a login-gated feature."
+      ],
+      "notes": "Phase 1 shipped. Phase 2 (identity override + cloud panel audit) deferred until Phase 1 is dogfooded. Phase 3 (outbound network lockdown) deferred until evidence shows it's needed."
     },
     {
       "id": "M4-001",

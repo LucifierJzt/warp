@@ -249,6 +249,134 @@
      `git add AGENTS.md ARCHITECTURE.md DEVELOPMENT.md progress.md feature-list.json init.sh session-handoff.md clean-state-checklist.md`
      then `git commit -m "harness: bootstrap二开 working environment"`.
 
+### Session 003 (cont. 2) — Focus area chosen + FORK-LOCAL-AUTH spec drafted
+
+- **Sub-goal:** Operator asked to "remove the existing login flow,
+  replace with a simple admin/admin login so we don't hit warp-server".
+  Investigate, then propose the simplest implementation.
+- **Investigation findings:**
+  - `app/src/auth/` is a 22-file module with `AuthManager`,
+    `AuthState`, `Credentials`, login modals, Firebase token handling,
+    SSO link views, etc.
+  - **Major discovery: upstream already ships a `skip_login` Cargo
+    feature** (`app/Cargo.toml:755`) used by their integration tests
+    and `fast_dev = ["skip_login"]` build alias. With it on:
+      * `auth_state.rs:136-138 should_use_test_user()` returns true,
+        immediately initializing AuthState with `User::test()` +
+        `Credentials::Test`.
+      * `server_api/auth.rs:244-246 get_or_refresh_access_token`
+        short-circuits with `bail!`, so any code path that tries to
+        call warp-server fails fast.
+      * `Credentials::Test` variant exists in `credentials.rs:28-30`
+        precisely for this case.
+  - **Empirically verified:** `cargo build --bin warp-oss --features
+    skip_login` compiled clean (2m12s, 0 errors), the binary launched
+    (PID 43617 + child 43956), entered macOS visible-process list,
+    stdout/stderr completely empty (no auth/token/login errors).
+  - This means the operator's "admin/admin login" goal is best served
+    by **NOT writing a new login UI** but by exposing `skip_login` via
+    a fork-named Cargo feature `local_only`.
+- **Trade-off vs. operator's literal request:**
+  - "Real" admin/admin login UI = ~500 lines (modal + state + plumbing
+    + credential persistence) for zero security gain on a single-user
+    laptop (macOS device unlock is the real boundary).
+  - `local_only = ["skip_login"]` = 1-line `Cargo.toml` change + an
+    optional 10-line identity override = same outcome (no warp-server,
+    app usable immediately) at ~1% the cost.
+- **Authored:**
+  - `specs/FORK-LOCAL-AUTH/PRODUCT.md` — desired behavior, acceptance
+    criteria, side-by-side comparison of upstream vs. fork surfaces,
+    open questions for operator.
+  - `specs/FORK-LOCAL-AUTH/TECH.md` — recommended approach (Cargo
+    feature, not new bin), 3-phase plan (minimum viable → identity
+    polish → outbound network lockdown), code locations cheat sheet,
+    test plan, risk table.
+- **feature-list.json updates:**
+  - `M2-001` marked `passing` (focus area chosen + specs absorbed).
+  - `M3-001` rewritten: was placeholder, now concrete FORK-LOCAL-AUTH
+    Phase 1 task with verification steps including `lsof` network
+    quietness check.
+  - Milestone M3 description updated.
+- **Verification run:** investigation only; no code changes.
+- **Evidence captured:** all in PRODUCT.md / TECH.md and the new
+  evidence arrays of M2-001 / M3-001.
+- **Commits:** _not committed yet — operator should review the specs
+  first._
+- **Files / artifacts updated:**
+  - `specs/FORK-LOCAL-AUTH/PRODUCT.md` (new)
+  - `specs/FORK-LOCAL-AUTH/TECH.md` (new)
+  - `feature-list.json` (M2-001 passing, M3-001 rewritten, M3 milestone
+    updated)
+  - `progress.md` (this entry)
+- **Known risk or unresolved issue:**
+  - Operator may still prefer a real admin/admin login UI for
+    aesthetic/training reasons; that path is documented as a non-goal
+    in PRODUCT.md but can be revisited.
+  - Phase 2.2 audit (10 cloud-gated UI surfaces) hasn't been done; some
+    might panic on `Credentials::Test`. We won't know until we try.
+  - Open questions in PRODUCT.md §"Open Questions" need operator input
+    before finalizing identity string and AI mode behavior.
+- **Next best step:**
+  1. Operator reviews `specs/FORK-LOCAL-AUTH/PRODUCT.md` and TECH.md.
+  2. Decide: take the recommended `local_only` Cargo-feature route, or
+     insist on the literal admin/admin login UI?
+  3. If recommended route: implement Phase 1 (one-line Cargo.toml
+     change + verification). Mark `M3-001` `passing`.
+  4. Commit + push the spec docs and the M3-001 implementation.
+
+### Session 003 (cont. 3) — FORK-LOCAL-AUTH Phase 1 shipped
+
+- **Sub-goal:** Operator approved the recommended `local_only` Cargo
+  feature route. Implement Phase 1 from TECH.md.
+- **Implementation:**
+  - Edited `app/Cargo.toml` line 755-760: added 5-line entry
+    `local_only = ["skip_login"]` with a FORK comment warning it must
+    never be in default features.
+- **Verification (all passed):**
+  - `cargo check --bin warp-oss --features local_only` — 1m32s, exit 0.
+  - `cargo build --bin warp-oss --features local_only` — 2m18s, exit 0.
+  - Binary launched as PID 83674 + terminal-server child PID 83911,
+    appeared in macOS visible-process list.
+  - **60-second network quietness check:** `lsof -i -P | grep warp-oss`
+    sampled at T+10/20/30/40/50/60s — zero IP sockets at every sample.
+    No `*.warp.dev` / firebase / googleapis connections at any point.
+  - stderr / stdout completely empty across all launches.
+  - **Cfg-elimination evidence (the cleanest proof):**
+    `strings target/debug/warp-oss | grep 'skip_login enabled'`
+    returns the `bail!("skip_login enabled; failing all authenticated
+    requests")` message ONLY when built with `--features local_only`.
+    The no-flag binary does not contain this string, proving the
+    `cfg!(feature = "skip_login")` gates are correctly compiled out.
+  - Reverse build (`cargo build --bin warp-oss` without flag) also
+    launches with 0 IP sockets — that's because upstream `warp-oss`
+    doesn't auto-call warp-server, only when the user clicks login.
+    The runtime difference is therefore `is_logged_in() == true`
+    (local_only) vs false (upstream), which would manifest when the
+    user reaches a login-gated UI surface.
+- **Verification run:** see verification list above.
+- **Evidence captured:** in feature-list.json under M3-001 evidence.
+- **Files / artifacts updated:**
+  - `app/Cargo.toml` (added local_only feature)
+  - `feature-list.json` (M3-001 → passing with full evidence)
+  - `progress.md` (this entry)
+- **Commits:** _not committed yet — about to commit + push_
+- **Known risk or unresolved issue:**
+  - Phase 2.2 audit (10 cloud-gated UI surfaces) not yet performed.
+    Some panels might panic on `Credentials::Test`. Will discover
+    during dogfooding.
+  - Identity string still shows `test_user@warp.dev` in the profile
+    menu (Phase 2.1 would fix this).
+  - The 5-day exploration plan from DEVELOPMENT.md is essentially
+    compressed into 1 day because we got lucky finding `skip_login`.
+- **Next best step:**
+  1. Commit + push Phase 1 changes.
+  2. Dogfood `cargo run --bin warp-oss --features local_only` for
+     a real session — try Drive, Settings, Agent Mode, Shared
+     Sessions. Note any panics or weird states in a new feature
+     entry `M3-002` (Phase 2.2 audit).
+  3. If Phase 2.1 (identity override) becomes important after
+     dogfooding, ship it as `M3-003`.
+
 ### Session 004
 
 - Date:

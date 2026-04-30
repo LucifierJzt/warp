@@ -753,6 +753,12 @@ sequential_storage = []
 session_sharing = []
 session_sharing_acls = []
 skip_login = []
+# FORK: enables fork-only "local mode" — no warp-server / Firebase auth.
+# Pulls in upstream's `skip_login` mechanism so all auth-gated code paths
+# fall back to a fixed test user + Credentials::Test, and the network
+# layer short-circuits any warp-server request.
+# MUST NOT appear in `default` features. See specs/FORK-LOCAL-AUTH/.
+local_only = ["skip_login"]
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = []
 prompt_suggestions_via_maa = []
