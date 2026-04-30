@@ -15,5 +15,6 @@
 
 pub mod client;
 pub mod conversation;
+pub mod panel;
 pub mod settings;
 pub mod types;
