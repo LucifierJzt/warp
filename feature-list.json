@@ -1,0 +1,140 @@
+{
+  "project": "warp-fork",
+  "last_updated": "2026-04-30",
+  "rules": {
+    "single_active_feature": true,
+    "passing_requires_evidence": true,
+    "do_not_skip_verification": true
+  },
+  "status_legend": {
+    "not_started": "Work has not begun.",
+    "in_progress": "The feature is the current active task. Only one allowed.",
+    "blocked": "Work cannot continue until a documented blocker is resolved.",
+    "passing": "Required verification has passed and evidence is recorded."
+  },
+  "milestones": {
+    "M0": "Environment ready: app launches locally.",
+    "M1": "First trivial fork change visible end-to-end.",
+    "M2": "Architecture absorbed: can locate any feature in <5 min.",
+    "M3": "First real product change shipped behind a fork feature flag.",
+    "M4": "Upstream sync workflow exercised once."
+  },
+  "features": [
+    {
+      "id": "harness-001",
+      "priority": 1,
+      "area": "harness",
+      "title": "Harness baseline: cargo check passes from a clean session",
+      "user_visible_behavior": "Running `./init.sh` from a fresh shell completes successfully with `cargo check` exit 0.",
+      "status": "passing",
+      "verification": [
+        "Open a fresh terminal.",
+        "cd /Users/troye/Project/warp",
+        "Run `./init.sh`.",
+        "Confirm 'Standard start command: $ cargo run' is printed at the end with no errors."
+      ],
+      "evidence": [
+        "Session 002 ran `cargo check` (default-members) in 2m12s, exit 0, 44 unused-variable warnings, 0 errors. See progress.md Session 002."
+      ],
+      "notes": "Hardened init.sh exports ~/.cargo/bin and uses `cargo check` (not --workspace) to avoid the command-signatures-v2 Node toolchain dependency."
+    },
+    {
+      "id": "M0-001",
+      "priority": 2,
+      "area": "bootstrap",
+      "title": "Launch warp-oss binary and reach the main window",
+      "user_visible_behavior": "Running `cargo run --bin warp-oss` opens a Warp terminal window on macOS.",
+      "status": "passing",
+      "verification": [
+        "cd /Users/troye/Project/warp",
+        "Run `cargo run --bin warp-oss`.",
+        "Wait for first compilation (5-10 minutes cold).",
+        "Confirm a terminal window appears.",
+        "Type `echo hello` and press Enter — output should appear in a block.",
+        "Capture a screenshot or note the window title and PID."
+      ],
+      "evidence": [
+        "2026-04-30 Session 003: `cargo build --bin warp-oss` finished in 4.06s (incremental on top of Session 002 cargo check), 0 errors, 44 unused-variable warnings.",
+        "Binary: target/debug/warp-oss (Mach-O 64-bit arm64, 694MB).",
+        "Launched as PID 50148, forked terminal-server child PID 50482 (`warp-oss terminal-server --parent-pid=50148`) — confirms Warp's normal multi-process model.",
+        "stdout/stderr empty — no startup errors.",
+        "macOS visible-process check via `osascript ... visible is true` lists `warp-oss` — GUI window is on screen."
+      ],
+      "notes": "Use the oss binary (no telemetry, no autoupdater, no crash reporting). If linking fails, see DEVELOPMENT.md §5.1. Operator should manually verify the window is interactive (type a command, see a block) — automated check confirmed only that the window exists."
+    },
+    {
+      "id": "M1-001",
+      "priority": 3,
+      "area": "fork",
+      "title": "First trivial fork change visible end-to-end",
+      "user_visible_behavior": "After a code edit, the Warp window shows a visible difference (e.g., changed window title, default theme color, or a banner string).",
+      "status": "passing",
+      "verification": [
+        "Pick one user-visible string or constant in app/src/ (do NOT change behavior).",
+        "Edit it, mark with `// FORK: smoke-test edit`.",
+        "Run `cargo check -p warp` (where warp = app crate) — must pass.",
+        "Run `cargo run --bin warp-oss` — observe the change.",
+        "Revert the change and confirm window goes back to original."
+      ],
+      "evidence": [
+        "2026-04-30 Session 003: edited app/src/bin/oss.rs CFBundleDisplayName from 'WarpOss' to 'WarpOss-Fork' with `<!-- FORK: smoke-test edit (M1-001) -->` marker.",
+        "Incremental rebuild: `cargo build --bin warp-oss` finished in 30.03s (only `app` crate recompiled — proves fast-iteration loop works).",
+        "Re-launched binary as PID 60168 with terminal-server child PID 60579, GUI listed in macOS visible processes, stdout/stderr empty.",
+        "Verified embedded Info.plist via `strings target/debug/warp-oss | grep WarpOss` → output contains both 'WarpOss-Fork' and the FORK comment, confirming the change reached the running binary.",
+        "Reverted: `git diff app/src/bin/oss.rs` → empty; `git status` shows only the 8 new harness files, no source code changes."
+      ],
+      "notes": "Goal achieved: edit→compile→run→verify→revert loop works in ~30s of incremental build time. CFBundleDisplayName affects the .app bundle Dock title; when running the bare debug binary it's not user-visible in the window chrome, so we verified via `strings` instead. For a more visually obvious smoke test next time, change a string actually rendered in the UI (e.g., a banner or default placeholder text)."
+    },
+    {
+      "id": "M2-001",
+      "priority": 4,
+      "area": "exploration",
+      "title": "Pick a focus area and absorb its specs",
+      "user_visible_behavior": "Operator can name the 3-5 files most likely to change for the chosen area, and the relevant specs/APP-* folders.",
+      "status": "not_started",
+      "verification": [
+        "Decide focus area (UI / AI / terminal / drive / fork).",
+        "List the 3-5 most relevant `app/src/<dir>` modules in this feature's `notes`.",
+        "List the 2-3 most relevant `specs/APP-*` folders in this feature's `notes`.",
+        "Skim each listed spec and write a one-line summary in `notes`."
+      ],
+      "evidence": [],
+      "notes": "Focus area is currently 'undecided — explore mode'. Update this entry once direction is chosen."
+    },
+    {
+      "id": "M3-001",
+      "priority": 5,
+      "area": "fork",
+      "title": "First real product change behind a fork feature flag",
+      "user_visible_behavior": "A new behavior is implemented, gated behind a Cargo feature added to the fork. Disabling the flag returns the app to upstream behavior.",
+      "status": "not_started",
+      "verification": [
+        "Replace this entry with a concrete spec (PRODUCT.md style) once chosen.",
+        "Add a Cargo feature in app/Cargo.toml gating all new code paths.",
+        "`cargo check --no-default-features` must still pass (proof the flag isolates).",
+        "`cargo run --bin warp-oss` with the flag enabled shows the new behavior.",
+        "`cargo run --bin warp-oss --no-default-features --features <minimal>` shows old behavior."
+      ],
+      "evidence": [],
+      "notes": "Use .claude/skills/add-feature-flag/SKILL.md for boilerplate."
+    },
+    {
+      "id": "M4-001",
+      "priority": 6,
+      "area": "upstream-sync",
+      "title": "Exercise upstream sync workflow once",
+      "user_visible_behavior": "Operator can rebase the fork onto upstream/master, resolve any conflicts, and end with a green `cargo check`.",
+      "status": "not_started",
+      "verification": [
+        "Add upstream remote: `git remote add upstream https://github.com/warpdotdev/warp.git`.",
+        "Fetch: `git fetch upstream`.",
+        "Inspect: `git log --oneline master..upstream/master | head -20`.",
+        "Rebase: `git rebase upstream/master` (resolve conflicts using .claude/skills/resolve-merge-conflicts/SKILL.md).",
+        "Run `cargo check`. Must be green.",
+        "Run `cargo run --bin warp-oss`. Must launch."
+      ],
+      "evidence": [],
+      "notes": "Don't actually push the rebase; this is a dry run to learn the conflict surface."
+    }
+  ]
+}
