@@ -13,5 +13,6 @@
 //! - [`conversation`]: multi-turn conversation `Model` (added in Step 1.3).
 //! - [`panel`]: WarpUI side-panel `View` (added in Step 1.4).
 
+pub mod client;
 pub mod settings;
 pub mod types;

@@ -81,7 +81,7 @@ pub struct Delta {
     pub role: Option<ChatRole>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct Usage {
     pub prompt_tokens: u32,
