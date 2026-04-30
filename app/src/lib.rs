@@ -3,6 +3,10 @@
 
 mod ai;
 mod alloc;
+// FORK: GLM Assistant — fork-only AI panel that talks directly to 智谱
+// GLM Coding Plan via OpenAI-compatible HTTP. See specs/FORK-ZHIPU-AI/.
+#[cfg(feature = "glm_assistant")]
+mod glm;
 mod antivirus;
 #[cfg(target_os = "macos")]
 mod app_menus;

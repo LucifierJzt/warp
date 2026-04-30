@@ -759,6 +759,12 @@ skip_login = []
 # layer short-circuits any warp-server request.
 # MUST NOT appear in `default` features. See specs/FORK-LOCAL-AUTH/.
 local_only = ["skip_login"]
+# FORK: enables a parallel, fork-only "GLM Assistant" right-side panel that
+# talks directly to 智谱 GLM Coding Plan via its OpenAI-compatible HTTP
+# endpoint. Independent of Warp's existing Agent Mode. See specs/FORK-ZHIPU-AI/.
+# Typically combined with `local_only` for a fully offline-from-warp build:
+#   cargo run --bin warp-oss --features local_only,glm_assistant
+glm_assistant = []
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = []
 prompt_suggestions_via_maa = []
