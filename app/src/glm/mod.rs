@@ -14,5 +14,6 @@
 //! - [`panel`]: WarpUI side-panel `View` (added in Step 1.4).
 
 pub mod client;
+pub mod conversation;
 pub mod settings;
 pub mod types;
