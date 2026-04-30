@@ -16,7 +16,7 @@
     "M0": "Environment ready: app launches locally.",
     "M1": "First trivial fork change visible end-to-end.",
     "M2": "Architecture absorbed; focus area = 'decouple from warp-server'.",
-    "M3": "FORK-LOCAL-AUTH shipped behind `local_only` Cargo feature.",
+    "M3": "Fork milestones — M3-001 LOCAL-AUTH (done), M3-002 ZHIPU-AI panel (specced).",
     "M4": "Upstream sync workflow exercised once."
   },
   "features": [
@@ -137,8 +137,30 @@
       "notes": "Phase 1 shipped. Phase 2 (identity override + cloud panel audit) deferred until Phase 1 is dogfooded. Phase 3 (outbound network lockdown) deferred until evidence shows it's needed."
     },
     {
-      "id": "M4-001",
+      "id": "M3-002",
       "priority": 6,
+      "area": "fork",
+      "title": "FORK-ZHIPU-AI: standalone GLM Assistant panel (OpenAI-compatible)",
+      "user_visible_behavior": "With `cargo run --bin warp-oss --features local_only,glm_assistant`, a new right-side panel 'GLM Assistant' streams chat responses directly from 智谱 GLM Coding Plan. Fully isolated from Warp's existing Agent Mode (which remains dormant in local_only).",
+      "status": "not_started",
+      "verification": [
+        "Read specs/FORK-ZHIPU-AI/PRODUCT.md and TECH.md before starting.",
+        "Phase 1.1: settings + Keychain — save/load API key survives relaunch.",
+        "Phase 1.2: GlmClient.chat_stream emits Chunk/Usage/Done in order against mockito fixture.",
+        "Phase 1.3: GlmConversation multi-turn includes prior assistant message in next request payload.",
+        "Phase 1.4-5: panel reachable via toolbar + ⌘+⇧+G shortcut; renders streaming markdown.",
+        "Phase 1.6: settings page exposes API key / base URL / model / system prompt fields.",
+        "Phase 1.7 manual smoke: 8 acceptance items from PRODUCT.md, all pass.",
+        "Network: lsof shows open.bigmodel.cn:443 only — no warp.dev traffic.",
+        "Reverse: `cargo run --bin warp-oss --features local_only` (no glm_assistant) shows no GLM panel — feature flag isolation.",
+        "Stop button mid-stream actually stops; no zombie tokio tasks (verify via tracing log)."
+      ],
+      "evidence": [],
+      "notes": "Architecture: brand-new app/src/ai/glm/ module, ~6 files, ~1200 LoC. ZERO changes to app/src/ai/, app/src/ai_assistant/, AIClient trait, warp_multi_agent_api. Phase 1 = chat-only, ~5-8 working days. Phase 2 (block context, slash command) deferred. Phase 3 (tools / file edits / MCP) deferred indefinitely — re-spec as FORK-GLM-AGENT only if dogfooding proves the need."
+    },
+    {
+      "id": "M4-001",
+      "priority": 7,
       "area": "upstream-sync",
       "title": "Exercise upstream sync workflow once",
       "user_visible_behavior": "Operator can rebase the fork onto upstream/master, resolve any conflicts, and end with a green `cargo check`.",

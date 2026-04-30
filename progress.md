@@ -377,6 +377,78 @@
   3. If Phase 2.1 (identity override) becomes important after
      dogfooding, ship it as `M3-003`.
 
+### Session 003 (cont. 4) — FORK-ZHIPU-AI specced (no code yet)
+
+- **Sub-goal:** Operator asked to "switch the AI from Claude to GLM,
+  using my own baseUrl + API key". Translate that into something
+  achievable within reasonable engineering scope.
+- **Investigation findings:**
+  - Warp's `AIClient` trait (`app/src/server/server_api/ai.rs:740`)
+    has 30+ methods, all sending Warp-private GraphQL mutations
+    (`generateDialogue`, `createAgentTask`, `updateMerkleTree`,
+    `getBlockSnapshot`, ...) to `app.warp.dev/graphql/v2`.
+  - Full-repo ripgrep for `api.openai.com|api.anthropic.com|googleapis`
+    returns ZERO hits. The client never talks to Anthropic/OpenAI
+    directly — warp-server does that translation.
+  - Therefore "swap base URL + API key" is **not a thing that exists**
+    in this client. There's no setting to change because the client
+    has never spoken OpenAI protocol.
+  - Three theoretical paths to make existing Agent Mode use GLM:
+      A. Replace `impl AIClient for ServerApi` → ZhipuAIClient.
+         15+ methods (spawn_agent, merkle_tree, block_snapshot,
+         conversation_metadata, file_artifact_upload, ...) have no
+         OpenAI-protocol equivalent. 2-3 weeks; result is half-broken.
+      B. Local GraphQL→OpenAI proxy faking warp-server. 3-4 weeks +
+         ongoing schema drift; debugging requires understanding both
+         protocols simultaneously.
+      C. Self-hosted warp-server clone. warp-server is closed-source.
+         3-6 months. Not realistic.
+  - Recommended path D: build a parallel, independent panel (the way
+    Cline/Roo/Cursor handle the same question) that owns its own
+    OpenAI-compatible HTTP stack. ~1-2 weeks; full control; zero
+    impact on Warp's existing Agent Mode.
+- **Operator decision:** path D ("panel_only").
+  - Auto-enabled with local_only? No — keep `glm_assistant` as a
+    separate Cargo feature. Build with both: `--features local_only,glm_assistant`.
+  - Model name: configurable, default GLM-4.6.
+  - Base URL: `https://open.bigmodel.cn/api/coding/paas/v4` (configurable).
+- **Authored:**
+  - `specs/FORK-ZHIPU-AI/PRODUCT.md` — desired behavior, acceptance
+    criteria, side-by-side surface table, "why we're not modifying
+    Warp's Agent Mode" section.
+  - `specs/FORK-ZHIPU-AI/TECH.md` — architecture diagram, 7-step
+    Phase-1 implementation plan with day-level estimates, file-by-file
+    plan (~6 new files in `app/src/ai/glm/` + 5 small touchpoints in
+    existing files), risk table, test plan.
+- **feature-list.json updates:**
+  - New entry `M3-002` (FORK-ZHIPU-AI). Status not_started.
+  - Milestone M3 description rewritten to encompass both fork
+    sub-features.
+- **Verification run:** none — design phase. No code edits.
+- **Evidence captured:** the spec docs.
+- **Commits:** _not yet — after operator review of specs._
+- **Files / artifacts updated:**
+  - `specs/FORK-ZHIPU-AI/PRODUCT.md` (new)
+  - `specs/FORK-ZHIPU-AI/TECH.md` (new)
+  - `feature-list.json` (M3-002 added; M3 description updated)
+  - `progress.md` (this entry)
+- **Known risk or unresolved issue:**
+  - PRODUCT.md §"Open Questions" still has 6 items where the spec
+    states recommendations but the operator hasn't explicitly
+    confirmed (e.g., Keychain vs plaintext, whether to show token
+    counts, history persistence model). Defaults are pre-chosen so
+    Phase 1 can proceed if operator approves the spec wholesale.
+  - Phase-1 estimate is 5-8 working days. Realistic only if no
+    unexpected friction appears in WarpUI panel registration —
+    we've never built a panel from scratch in this codebase before.
+- **Next best step:**
+  1. Operator reviews `specs/FORK-ZHIPU-AI/PRODUCT.md` and TECH.md.
+  2. Confirm or override the 6 "Open Questions" defaults.
+  3. Decide whether to start Phase 1 immediately or sit on it until
+     LOCAL-AUTH (M3-001) has been dogfooded for a few days.
+  4. Commit + push the spec documents either way (they're useful
+     reference material even if implementation is deferred).
+
 ### Session 004
 
 - Date:
