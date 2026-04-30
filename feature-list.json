@@ -141,8 +141,8 @@
       "priority": 6,
       "area": "fork",
       "title": "FORK-ZHIPU-AI: standalone GLM Assistant panel (OpenAI-compatible)",
-      "user_visible_behavior": "With `cargo run --bin warp-oss --features local_only,glm_assistant`, a new right-side panel 'GLM Assistant' streams chat responses directly from 智谱 GLM Coding Plan. Fully isolated from Warp's existing Agent Mode (which remains dormant in local_only).",
-      "status": "not_started",
+      "user_visible_behavior": "With `cargo run --bin warp-oss --features local_only,glm_assistant`, a new modal-style 'GLM Assistant' panel streams chat responses directly from 智谱 GLM Coding Plan. Fully isolated from Warp's existing Agent Mode (which remains dormant in local_only). Form factor degraded from 'right-side panel' to 'modal overlay' in Step 1.4 to avoid a 4-6h dispatcher rewrite — operator approved during cont. 5 of Session 003.",
+      "status": "in_progress",
       "verification": [
         "Read specs/FORK-ZHIPU-AI/PRODUCT.md and TECH.md before starting.",
         "Phase 1.1: settings + Keychain — save/load API key survives relaunch.",
@@ -155,8 +155,15 @@
         "Reverse: `cargo run --bin warp-oss --features local_only` (no glm_assistant) shows no GLM panel — feature flag isolation.",
         "Stop button mid-stream actually stops; no zombie tokio tasks (verify via tracing log)."
       ],
-      "evidence": [],
-      "notes": "Architecture: brand-new app/src/ai/glm/ module, ~6 files, ~1200 LoC. ZERO changes to app/src/ai/, app/src/ai_assistant/, AIClient trait, warp_multi_agent_api. Phase 1 = chat-only, ~5-8 working days. Phase 2 (block context, slash command) deferred. Phase 3 (tools / file edits / MCP) deferred indefinitely — re-spec as FORK-GLM-AGENT only if dogfooding proves the need."
+      "evidence": [
+        "Step 1.1 (commit c829c49): module skeleton + Cargo feature glm_assistant + types.rs (ChatMessage/ChatRequest/ChatChunk/Usage with serde forward-compat) + settings.rs (Keychain-backed API key + JSON-blob non-secret settings, defaults to glm-4.6 + open.bigmodel.cn/api/coding/paas/v4). 10 unit tests passed.",
+        "Step 1.2 (commit b3878d3): client.rs — GlmClient::chat_stream returns Stream<StreamEvent> via http_client::Client + reqwest_eventsource. Bearer auth, prevent_sleep, provider error envelope handling. 4 mockito-backed tests covering happy path, 401, unknown chunk fields, empty data lines.",
+        "Step 1.3 (commit d7abb74): conversation.rs — GlmConversation Model, multi-turn history capped at 40 messages, AbortHandle for Stop, Drop aborts. Pragmatic Step 1.3 cut: collects full response then notifies (token-by-token streaming UX deferred to 1.3.5). 5 tests added covering history shape and end-to-end response collection.",
+        "Step 1.4 (commit d4b1339): panel.rs — GlmAssistantPanel View+TypedActionView, header/messages/state-line/Editor/Send-Stop-Reset, no Markdown yet. Fixed 24→6→0 WarpUI API errors (ModelHandle::as_ref returns &Model not Option, Appearance lacks app ctx, Padding::uniform required, Fill→ColorU explicit, ButtonVariant::Accent vs nonexistent Primary, nonactive_ui_text_color vs nonexistent subtle_ui_text_color). Compiles cleanly; NOT YET wired into workspace.",
+        "Cumulative: cargo check -p warp --features glm_assistant clean; cargo test -p warp --features glm_assistant --lib glm:: passes 19/19.",
+        "Remaining: Step 1.5 (wire into workspace/view.rs render tree near line 22535 modal stack), Step 1.6 (settings page), Step 1.7 (E2E smoke)."
+      ],
+      "notes": "Architecture: brand-new app/src/glm/ module, 6 files (mod, client, conversation, panel, settings, types), ~1500 LoC. ZERO changes to app/src/ai/, app/src/ai_assistant/, AIClient trait, warp_multi_agent_api. Phase 1 = chat-only, originally estimated 5-8 working days; Steps 1.1-1.4 took ~5h of Session 003 cont. 5. Step 1.5 (workspace integration) is the highest-risk remaining piece because it modifies workspace/view.rs (~22000 lines). Phase 2 (block context, slash command) deferred. Phase 3 (tools / file edits / MCP) deferred indefinitely — re-spec as FORK-GLM-AGENT only if dogfooding proves the need."
     },
     {
       "id": "M4-001",

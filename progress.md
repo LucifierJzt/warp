@@ -449,6 +449,98 @@
   4. Commit + push the spec documents either way (they're useful
      reference material even if implementation is deferred).
 
+### Session 003 (cont. 5) — FORK-ZHIPU-AI Phase 1 Steps 1.1-1.4 shipped
+
+- **Sub-goal:** Build the GLM Assistant panel from the spec written in
+  cont. 4. Operator chose "go all the way through Phase 1" but reality
+  pulled the rip cord at Step 1.4 (UI layer hit my WarpUI knowledge
+  ceiling once, recovered, but Step 1.5 has higher recovery risk on a
+  22000+ line file — better to checkpoint here than mix-up commit).
+- **Implementation completed (4/7 of Phase 1):**
+  - Step 1.1 (`c829c49`): Cargo feature `glm_assistant`, module
+    skeleton at `app/src/glm/`, `types.rs` (ChatMessage / ChatRequest
+    / ChatChunk / Usage with serde_default everywhere for forward
+    compat), `settings.rs` (GlmSettings struct with default
+    `glm-4.6` + `https://open.bigmodel.cn/api/coding/paas/v4`,
+    Keychain-backed API-key load/save/clear via warpui_extras
+    secure_storage). 10/10 unit tests.
+  - Step 1.2 (`b3878d3`): `client.rs` — `GlmClient::chat_stream(req)`
+    returns `impl Stream<Item = StreamEvent>`. Reuses the project's
+    `http_client::Client` (bearer_auth, json, prevent_sleep,
+    eventsource — no new external deps). StreamEvent variants:
+    Open, Chunk(String), Usage(Usage), Done, Error(String). Provider
+    error envelopes (`{"error":{"message":...}}`) are surfaced as
+    StreamEvent::Error("provider error: ..."). 4 mockito tests
+    (happy path, 401, unknown chunk fields, empty data lines).
+  - Step 1.3 (`d7abb74`): `conversation.rs` — `GlmConversation` is
+    a warpui Model with multi-turn history (capped 40 messages),
+    in-flight `AbortHandle` for Stop, build_request prepends
+    system_prompt (omits if blank), Drop aborts. **Pragmatic
+    choice:** this first cut **collects the full response** inside
+    the spawned future before notifying the panel. Token-by-token
+    streaming UX is deferred to Step 1.3.5 — once panel.rs has a
+    stable view ctx to wire chunk-level updates through, the bridge
+    is straightforward (swap `collect_response` for an mpsc-driven
+    loop). 5 unit tests (3 history shape + 2 mockito-backed
+    response-collection tests covering happy path and provider error).
+  - Step 1.4 (`d4b1339`): `panel.rs` — `GlmAssistantPanel` is a
+    self-contained WarpUI `View` with header / messages column /
+    state line / EditorView prompt / Send-Stop-Reset buttons.
+    Reused patterns from `app/src/cloud_object/grab_edit_access_modal.rs`
+    (View + TypedActionView impl) and `app/src/ai_assistant/panel.rs`
+    (editor.set_buffer_text / clear_buffer_and_reset_undo_stack /
+    buffer_text(ctx)). **Step landed in scope of "compiles cleanly,
+    not yet inserted into the workspace render tree".** Workspace
+    insertion is Step 1.5 and intentionally a separate commit.
+- **WarpUI API gotchas discovered & encoded in Step 1.4 commit msg:**
+  - `ModelHandle::as_ref(ctx)` returns `&Model`, NOT `Option<&Model>`.
+  - `Appearance` does NOT carry an app context — `render_*` methods
+    must take `&AppContext` separately.
+  - `ButtonVariant::Accent` is the closest equivalent of Primary;
+    no Primary variant exists.
+  - Theme color helpers: `active_ui_text_color()` (foreground) and
+    `nonactive_ui_text_color()` (subtle) — NOT `subtle_ui_text_color`
+    or `disabled_ui_text_color`.
+  - `Container::with_padding` takes a `Padding` (use
+    `Padding::uniform(f)` / `Padding::uniform(f).with_left(...)`),
+    not a raw `f32`.
+  - `Text::new(...).with_color(c)` requires `ColorU`; `Fill` from a
+    theme accessor must be `.into()`'d.
+  - `Text::new_inline(...).with_color(c)` accepts `Fill` directly,
+    but `new` and `new_inline` are different builders.
+- **Verification:**
+  - `cargo check -p warp` (no feature): clean.
+  - `cargo check -p warp --features glm_assistant`: clean.
+  - `cargo test -p warp --features glm_assistant --lib glm::`:
+    19 passed, 0 failed.
+- **Commits pushed:** all of c829c49, b3878d3, d7abb74, d4b1339 to
+  `origin/master`. Git tree clean.
+- **Remaining work for Phase 1 (3/7 steps):**
+  - Step 1.5 — wire `GlmAssistantPanel` into the workspace render
+    tree as a modal-style overlay. Needs `app/src/workspace/view.rs`
+    edits: add `ViewHandle<GlmAssistantPanel>` field, wire toggle
+    state, register `WorkspaceAction::ToggleGlmAssistant` (or
+    similar) + a keybinding (proposed `⌘+⇧+G`), gate `add_child` on
+    toggle in the modal stack section (~line 22535+).
+  - Step 1.6 — settings page in `app/src/settings_view/` for API
+    key / base URL / model / system prompt.
+  - Step 1.7 — end-to-end smoke per PRODUCT.md acceptance.
+- **Known unresolved:**
+  - Streaming UX is deferred to Step 1.3.5 (after Step 1.5 has a
+    stable view ctx).
+  - HISTORY_MAX_TURNS hardcoded to 20; not yet exposed via settings.
+  - No Markdown rendering / syntax highlighting in panel — Phase 2+.
+- **Files / artifacts updated:**
+  - new: `app/src/glm/{mod,client,conversation,panel,settings,types}.rs`
+  - modified: `app/Cargo.toml` (+1 feature), `app/src/lib.rs` (+1
+    `#[cfg]` mod decl).
+  - this `progress.md` entry.
+- **Next best step:** open Step 1.5. Concrete first action: skim
+  `app/src/workspace/view.rs` around line 22535 (the modal stack
+  block) and `app/src/workspace/mod.rs` for the WorkspaceAction enum
+  and `register_editable_bindings` call site for the existing AI
+  panel keybinding. Mirror that pattern.
+
 ### Session 004
 
 - Date:
